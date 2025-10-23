@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  worker:
+    image: "__IMAGE_URI__"
+    container_name: ips-data-acquisition-worker
+    restart: unless-stopped
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-region: "ap-south-1"
+        awslogs-group: "/ecs/ips-worker"
+        awslogs-stream: "ips-worker-container"
+        awslogs-create-group: "true"
+
