@@ -19,8 +19,17 @@ public class RedisCache : IRedisCache, IDisposable
     {
         _logger = logger;
         
-        var endpoint = configuration["Redis:Endpoint"] 
-            ?? throw new InvalidOperationException("Redis:Endpoint not configured");
+        var endpoint = configuration["Redis:Endpoint"];
+        
+        // Check if Redis is configured and endpoint is not a placeholder
+        if (string.IsNullOrEmpty(endpoint) || endpoint.StartsWith("__"))
+        {
+            _logger.LogWarning("Redis not configured or placeholder not replaced. Redis caching will be disabled.");
+            // Create a dummy connection that won't be used
+            _redis = null!;
+            _db = null!;
+            return;
+        }
         
         var useSsl = bool.Parse(configuration["Redis:UseSsl"] ?? "true");
         var defaultDatabase = int.Parse(configuration["Redis:Database"] ?? "0");
@@ -29,23 +38,32 @@ public class RedisCache : IRedisCache, IDisposable
         var expirationHours = int.Parse(configuration["Redis:ExpirationHours"] ?? "24");
         _defaultExpiration = TimeSpan.FromHours(expirationHours);
 
-        var options = ConfigurationOptions.Parse(endpoint);
-        options.Ssl = useSsl;
-        options.AbortOnConnectFail = false;
-        options.ConnectTimeout = 10000;
-        options.SyncTimeout = 5000;
+        try
+        {
+            var options = ConfigurationOptions.Parse(endpoint);
+            options.Ssl = useSsl;
+            options.AbortOnConnectFail = false;
+            options.ConnectTimeout = 10000;
+            options.SyncTimeout = 5000;
 
-        _logger.LogInformation("Connecting to Redis at {Endpoint} (SSL: {UseSsl})", endpoint, useSsl);
-        
-        _redis = ConnectionMultiplexer.Connect(options);
-        _db = _redis.GetDatabase(defaultDatabase);
-        
-        _logger.LogInformation("Successfully connected to Redis");
+            _logger.LogInformation("Connecting to Redis at {Endpoint} (SSL: {UseSsl})", endpoint, useSsl);
+            
+            _redis = ConnectionMultiplexer.Connect(options);
+            _db = _redis.GetDatabase(defaultDatabase);
+            
+            _logger.LogInformation("Successfully connected to Redis");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to connect to Redis at {Endpoint}. Redis caching will be disabled.", endpoint);
+            _redis = null!;
+            _db = null!;
+        }
     }
 
     public async Task AppendSessionDataAsync(string sessionId, List<IMUDataPointDto> dataPoints, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(sessionId) || dataPoints == null || !dataPoints.Any())
+        if (_db == null || string.IsNullOrEmpty(sessionId) || dataPoints == null || !dataPoints.Any())
         {
             return;
         }
@@ -77,7 +95,7 @@ public class RedisCache : IRedisCache, IDisposable
 
     public async Task<List<IMUDataPointDto>?> GetSessionDataAsync(string sessionId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(sessionId))
+        if (_db == null || string.IsNullOrEmpty(sessionId))
         {
             return null;
         }
@@ -122,7 +140,7 @@ public class RedisCache : IRedisCache, IDisposable
 
     public async Task DeleteSessionDataAsync(string sessionId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(sessionId))
+        if (_db == null || string.IsNullOrEmpty(sessionId))
         {
             return;
         }
@@ -142,7 +160,7 @@ public class RedisCache : IRedisCache, IDisposable
 
     public async Task SetSessionExpirationAsync(string sessionId, TimeSpan expiration, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(sessionId))
+        if (_db == null || string.IsNullOrEmpty(sessionId))
         {
             return;
         }
@@ -162,7 +180,7 @@ public class RedisCache : IRedisCache, IDisposable
 
     public async Task<long> GetSessionDataCountAsync(string sessionId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(sessionId))
+        if (_db == null || string.IsNullOrEmpty(sessionId))
         {
             return 0;
         }
