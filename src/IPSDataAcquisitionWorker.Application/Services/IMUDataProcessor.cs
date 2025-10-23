@@ -38,7 +38,7 @@ public class IMUDataProcessor : IMessageProcessor
         if (!string.IsNullOrEmpty(message.SessionId))
         {
             await _redisCache.AppendSessionDataAsync(message.SessionId, message.DataPoints, cancellationToken);
-            _logger.LogDebug("Cached {Count} data points for session {SessionId} in Redis", 
+            _logger.LogInformation("✓ Cached {Count} data points for session {SessionId} in Redis", 
                 message.DataPoints.Count, message.SessionId);
         }
         

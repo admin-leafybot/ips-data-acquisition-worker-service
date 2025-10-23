@@ -12,7 +12,7 @@ public class RedisCache : IRedisCache, IDisposable
     private readonly ILogger<RedisCache> _logger;
     private readonly IConnectionMultiplexer _redis;
     private readonly IDatabase _db;
-    private readonly string _keyPrefix;
+    private readonly string _keyPrefix = "imu:session:";
     private readonly TimeSpan _defaultExpiration;
 
     public RedisCache(IConfiguration configuration, ILogger<RedisCache> logger)
@@ -46,12 +46,23 @@ public class RedisCache : IRedisCache, IDisposable
             options.ConnectTimeout = 10000;
             options.SyncTimeout = 5000;
 
-            _logger.LogInformation("Connecting to Redis at {Endpoint} (SSL: {UseSsl})", endpoint, useSsl);
+            _logger.LogInformation("=== REDIS CONNECTION ATTEMPT ===");
+            _logger.LogInformation("Endpoint: {Endpoint}", endpoint);
+            _logger.LogInformation("SSL/TLS: {UseSsl}", useSsl);
+            _logger.LogInformation("Database: {Database}", defaultDatabase);
+            _logger.LogInformation("Key Prefix: {KeyPrefix}", _keyPrefix);
             
             _redis = ConnectionMultiplexer.Connect(options);
             _db = _redis.GetDatabase(defaultDatabase);
             
-            _logger.LogInformation("Successfully connected to Redis");
+            var redisEndpoint = _redis.GetEndPoints().FirstOrDefault();
+            var isConnected = _redis.IsConnected;
+            
+            _logger.LogInformation("✅ REDIS CONNECTION SUCCESSFUL");
+            _logger.LogInformation("Connected to: {Endpoint}", redisEndpoint);
+            _logger.LogInformation("Connection status: {Status}", isConnected ? "Connected" : "Disconnected");
+            _logger.LogInformation("Client name: {ClientName}", _redis.ClientName);
+            _logger.LogInformation("================================");
         }
         catch (Exception ex)
         {
