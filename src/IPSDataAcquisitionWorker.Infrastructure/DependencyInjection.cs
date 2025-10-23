@@ -36,6 +36,9 @@ public static class DependencyInjection
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
         
+        // Redis Cache
+        services.AddSingleton<IRedisCache, RedisCache>();
+        
         // Application Services
         services.AddScoped<IMessageProcessor, IMUDataProcessor>();
         

@@ -8,13 +8,16 @@ namespace IPSDataAcquisitionWorker.Application.Services;
 public class IMUDataProcessor : IMessageProcessor
 {
     private readonly IApplicationDbContext _context;
+    private readonly IRedisCache _redisCache;
     private readonly ILogger<IMUDataProcessor> _logger;
 
     public IMUDataProcessor(
         IApplicationDbContext context,
+        IRedisCache redisCache,
         ILogger<IMUDataProcessor> logger)
     {
         _context = context;
+        _redisCache = redisCache;
         _logger = logger;
     }
 
@@ -30,6 +33,15 @@ public class IMUDataProcessor : IMessageProcessor
             message.DataPoints.Count, message.SessionId ?? "null", message.UserId ?? "null");
 
         var startTime = DateTime.UtcNow;
+        
+        // Cache data points in Redis (for fast session data retrieval)
+        if (!string.IsNullOrEmpty(message.SessionId))
+        {
+            await _redisCache.AppendSessionDataAsync(message.SessionId, message.DataPoints, cancellationToken);
+            _logger.LogDebug("Cached {Count} data points for session {SessionId} in Redis", 
+                message.DataPoints.Count, message.SessionId);
+        }
+        
         var imuDataList = new List<IMUData>(message.DataPoints.Count); // Pre-allocate capacity
 
         foreach (var point in message.DataPoints)

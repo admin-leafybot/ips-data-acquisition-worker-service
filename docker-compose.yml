@@ -16,9 +16,15 @@ services:
       RabbitMQ__QueueName: imu-data-queue
       RabbitMQ__PrefetchCount: 20
       RabbitMQ__MaxConcurrency: 10
+      Redis__Endpoint: redis:6379
+      Redis__UseSsl: false
+      Redis__Database: 0
+      Redis__KeyPrefix: "imu:session:"
+      Redis__ExpirationHours: 24
     depends_on:
       - db
       - rabbitmq
+      - redis
     restart: unless-stopped
 
   db:
@@ -45,7 +51,17 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  redis:
+    image: redis:7-alpine
+    container_name: ips-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
 volumes:
   postgres_data:
   rabbitmq_data:
+  redis_data:
 
