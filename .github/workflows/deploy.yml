@@ -40,7 +40,7 @@ jobs:
             [ -f "$f" ] || continue
             echo "Processing $f"
             # Find tokens like __NAME__
-            mapfile -t tokens < <(grep -oE '"__([A-Z0-9_]+)__"' "$f" | tr -d '"' | sort -u || true)
+            mapfile -t tokens < <(grep -oE '__[A-Z0-9_]+__' "$f" | sort -u || true)
             for t in "${tokens[@]}"; do
               name=${t#__}; name=${name%__}
               val=${!name-}
@@ -48,13 +48,29 @@ jobs:
                 echo "Warning: no value found for $t (env $name). Leaving placeholder as-is." >&2
                 continue
               fi
-              # Escape replacement safely for sed
-              esc=$(printf '%s' "$val" | sed -e 's/[\/&]/\\&/g')
-              sed -i.bak -e "s#\"${t}\"#\"${esc}\"#g" "$f"
+              # Use awk for reliable replacement (handles all special characters)
+              awk -v placeholder="$t" -v value="$val" '
+                {
+                  # Simple string replacement without regex
+                  while (index($0, placeholder)) {
+                    pos = index($0, placeholder)
+                    $0 = substr($0, 1, pos-1) value substr($0, pos+length(placeholder))
+                  }
+                  print
+                }
+              ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
             done
           done
-          echo "Preview of updated appsettings.Production.json:"
-          head -n 200 src/IPSDataAcquisitionWorker.Worker/appsettings.Production.json || true
+          echo "Checking for any remaining placeholders..."
+          if grep -q '__[A-Z0-9_]*__' src/IPSDataAcquisitionWorker.Worker/appsettings.Production.json; then
+            echo "Warning: Some placeholders were not replaced:"
+            grep -o '__[A-Z0-9_]*__' src/IPSDataAcquisitionWorker.Worker/appsettings.Production.json | sort -u
+          else
+            echo "✓ All placeholders successfully replaced"
+          fi
+          echo ""
+          echo "Preview of updated appsettings.Production.json (first 20 lines):"
+          head -n 20 src/IPSDataAcquisitionWorker.Worker/appsettings.Production.json || true
         shell: bash
 
       - name: Set up Docker Buildx
