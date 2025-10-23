@@ -40,7 +40,7 @@ jobs:
             [ -f "$f" ] || continue
             echo "Processing $f"
             # Find tokens like __NAME__
-            mapfile -t tokens < <(grep -oE '__[A-Z0-9_]+__' "$f" | sort -u || true)
+            mapfile -t tokens < <(grep -oE '"__([A-Z0-9_]+)__"' "$f" | tr -d '"' | sort -u || true)
             for t in "${tokens[@]}"; do
               name=${t#__}; name=${name%__}
               val=${!name-}
@@ -48,8 +48,9 @@ jobs:
                 echo "Warning: no value found for $t (env $name). Leaving placeholder as-is." >&2
                 continue
               fi
-              # Use perl instead of sed for more reliable escaping
-              perl -i.bak -pe "s/\Q${t}\E/\Q${val}\E/g" "$f"
+              # Escape replacement safely for sed
+              esc=$(printf '%s' "$val" | sed -e 's/[\/&]/\\&/g')
+              sed -i.bak -e "s#\"${t}\"#\"${esc}\"#g" "$f"
             done
           done
           echo "Preview of updated appsettings.Production.json:"
