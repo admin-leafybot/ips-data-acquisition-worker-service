@@ -61,6 +61,16 @@ public class RabbitMqConsumerService : BackgroundService
                 NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
             };
 
+            // Enable SSL for port 5671 (Amazon MQ with SSL)
+            if (port == 5671)
+            {
+                factory.Ssl.Enabled = true;
+                factory.Ssl.ServerName = hostName;
+                factory.Ssl.AcceptablePolicyErrors = System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch |
+                                                     System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors;
+                _logger.LogInformation("SSL/TLS enabled for RabbitMQ connection");
+            }
+
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
